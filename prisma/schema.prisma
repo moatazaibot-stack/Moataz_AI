@@ -1,0 +1,1263 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ENUMS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+enum RoleName {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  MEMBER
+  GUEST
+}
+
+enum PermissionAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  MANAGE
+}
+
+enum ProviderType {
+  OPENAI
+  GEMINI
+  ANTHROPIC
+  OPENROUTER
+  NVIDIA_NIM
+  HUGGING_FACE
+  MISTRAL
+  GROQ
+  DEEPSEEK
+  COHERE
+  AZURE_OPENAI
+  OLLAMA
+  CUSTOM
+}
+
+enum OAuthProvider {
+  GOOGLE
+  GITHUB
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  LOGIN_FAILED
+  PASSWORD_RESET
+  EMAIL_VERIFIED
+  ROLE_CHANGE
+  PERMISSION_CHANGE
+  API_KEY_CREATED
+  API_KEY_REVOKED
+  SETTINGS_CHANGE
+  EXPORT
+}
+
+enum FeatureFlagType {
+  BOOLEAN
+  PERCENTAGE
+  VARIANT
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum FileStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum MemoryScope {
+  PERSONAL
+  WORKSPACE
+  PROJECT
+  ORGANIZATION
+  PINNED
+}
+
+enum MemoryType {
+  FACT
+  PREFERENCE
+  DECISION
+  INSTRUCTION
+  CONTEXT
+  SUMMARY
+  ENTITY
+  RELATIONSHIP
+}
+
+enum MemoryStatus {
+  ACTIVE
+  ARCHIVED
+  EXPIRED
+  DEPRECATED
+}
+
+enum DocumentType {
+  PDF
+  DOCX
+  MARKDOWN
+  TEXT
+  CSV
+  CODE
+  HTML
+  WEBPAGE
+  ARTICLE
+  NOTE
+  IMAGE
+  SPREADSHEET
+  PRESENTATION
+}
+
+enum DocumentStatus {
+  PENDING
+  EXTRACTING
+  CHUNKING
+  EMBEDDING
+  INDEXED
+  FAILED
+  DUPLICATE
+}
+
+enum CollectionType {
+  KNOWLEDGE_BASE
+  FOLDER
+  CATEGORY
+  TAG_GROUP
+  SHARED
+}
+
+enum EmbeddingStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum EmbeddingModel {
+  OPENAI_SMALL
+  OPENAI_LARGE
+  COHERE
+  MISTRAL
+  LOCAL
+}
+
+enum ArtifactType {
+  CODE
+  IMAGE
+  DOCUMENT
+  TABLE
+  CHART
+  MARKDOWN
+  PDF
+  JSON
+  CSV
+  HTML
+  SVG
+}
+
+enum FolderType {
+  CHAT
+  FILE
+  PROJECT
+}
+
+enum MessageStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+  STOPPED
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+  LOVE
+  THUMBS_UP
+  THUMBS_DOWN
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CORE: USERS & AUTH
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model User {
+  id                    String                @id @default(cuid())
+  email                 String                @unique
+  name                  String?
+  avatarUrl             String?
+  passwordHash          String?
+  emailVerified         Boolean               @default(false)
+  emailVerifiedAt       DateTime?
+  isActive              Boolean               @default(true)
+  isSuperAdmin          Boolean               @default(false)
+  lastLoginAt           DateTime?
+  lastLoginIp           String?
+  preferredLocale       String                @default("en")
+  timezone              String                @default("UTC")
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  // Relations
+  sessions              Session[]
+  oauthAccounts         OAuthAccount[]
+  apiKeys               ApiKey[]
+  memberships           Membership[]
+  ownedOrganizations    Organization[]        @relation("OrganizationOwner")
+  chats                 Chat[]
+  messages              Message[]
+  files                 File[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  settings              UserSetting[]
+  featureFlagEvaluations FeatureFlagEvaluation[]
+  folders               Folder[]
+  tags                  Tag[]
+  artifacts             Artifact[]
+  notes                 Note[]
+  tasks                 Task[]
+  chatShares            ChatShare[]
+  messageReactions      MessageReaction[]
+  quickAccessItems      QuickAccess[]
+  promptLibrary         PromptLibrary[]
+  preferences           UserPreference[]
+  memories              Memory[]
+  knowledgeDocuments    KnowledgeDocument[]
+  collections           Collection[]
+  embeddings            Embedding[]
+  memoryPermissions     MemoryPermission[]
+
+  @@index([email])
+  @@index([isActive])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  isRevoked    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([refreshToken])
+  @@index([expiresAt])
+}
+
+model OAuthAccount {
+  id           String        @id @default(cuid())
+  userId       String
+  provider     OAuthProvider
+  providerId   String
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerId])
+  @@index([userId])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([token])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ORGANIZATIONS & TEAMS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  logoUrl     String?
+  description String?
+  isActive    Boolean  @default(true)
+  plan        String   @default("free")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  ownerId     String
+  owner       User       @relation("OrganizationOwner", fields: [ownerId], references: [id])
+  memberships Membership[]
+  teams       Team[]
+  projects    Project[]
+  workspaces  Workspace[]
+  providers   Provider[]
+  apiKeys     ApiKey[]
+  chats       Chat[]
+  files       File[]
+  folders     Folder[]
+  tags        Tag[]
+  artifacts   Artifact[]
+  notes       Note[]
+  tasks       Task[]
+  memories    Memory[]
+  knowledgeDocuments KnowledgeDocument[]
+  collections Collection[]
+  embeddings  Embedding[]
+  settings    OrganizationSetting[]
+  auditLogs   AuditLog[]
+
+  @@index([slug])
+  @@index([isActive])
+}
+
+model Team {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String
+  description    String?
+  organizationId String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships  Membership[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model Membership {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String
+  teamId         String?
+  role           RoleName @default(MEMBER)
+  joinedAt       DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  team         Team?        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+  @@index([userId])
+  @@index([organizationId])
+  @@index([teamId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// RBAC
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Role {
+  id          String   @id @default(cuid())
+  name        RoleName @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions Permission[]
+}
+
+model Permission {
+  id         String            @id @default(cuid())
+  roleId     String
+  resource   String
+  action     PermissionAction
+  createdAt  DateTime          @default(now())
+
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, resource, action])
+  @@index([roleId])
+}
+
+model Analytics {
+  id             String   @id @default(cuid())
+  organizationId String
+  event          String
+  properties     String?  // JSON string
+  userId         String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([event])
+  @@index([createdAt])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PROJECTS & WORKSPACES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Project {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String
+  description    String?
+  icon           String?
+  color          String?
+  organizationId String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspaces   Workspace[]
+  chats        Chat[]
+  files        File[]
+  artifacts    Artifact[]
+  notes        Note[]
+  tasks        Task[]
+  memories     Memory[]
+  knowledgeDocuments KnowledgeDocument[]
+  collections  Collection[]
+  workspaceVariables WorkspaceVariable[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model Workspace {
+  id             String   @id @default(cuid())
+  name           String
+  description    String?
+  organizationId String
+  projectId      String
+  layout         String?  // JSON string for workspace layout
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([projectId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AI: CHAT & MESSAGES
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Chat {
+  id             String   @id @default(cuid())
+  title          String?
+  organizationId String
+  projectId      String?
+  userId         String
+  folderId       String?
+  providerType   ProviderType?
+  modelId        String?
+  isArchived     Boolean  @default(false)
+  isPinned       Boolean  @default(false)
+  isFavorite     Boolean  @default(false)
+  isShared       Boolean  @default(false)
+  parentChatId   String?  // For conversation branching
+  modelParams    String?  // JSON: temperature, topP, maxTokens, etc.
+  lastMessageAt  DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  folder       Folder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  parentChat   Chat?      @relation("ChatBranch", fields: [parentChatId], references: [id], onDelete: SetNull)
+  branches     Chat[]     @relation("ChatBranch")
+  messages     Message[]
+  tags         ChatTag[]
+  shares       ChatShare[]
+  artifacts    Artifact[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([folderId])
+  @@index([createdAt])
+  @@index([isPinned])
+  @@index([isArchived])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String
+  userId    String?
+  role      String   // user, assistant, system, tool
+  content   String
+  model     String?
+  tokensIn  Int?
+  tokensOut Int?
+  status    MessageStatus @default(COMPLETED)
+  metadata  String?  // JSON string
+  parentMessageId String? // For branching/versioning
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+  chat    Chat            @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  versions MessageVersion[]
+  reactions MessageReaction[]
+  artifacts Artifact[]
+
+  @@index([chatId])
+  @@index([createdAt])
+  @@index([parentMessageId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AI: PROVIDERS & MODELS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Provider {
+  id             String       @id @default(cuid())
+  organizationId String
+  type           ProviderType
+  name           String
+  apiKey         String?      // encrypted
+  baseUrl        String?
+  isActive       Boolean      @default(true)
+  config         String?      // JSON string
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  models       Model[]
+
+  @@index([organizationId])
+  @@index([type])
+}
+
+model Model {
+  id          String   @id @default(cuid())
+  providerId  String
+  externalId  String   // model ID as known by the provider
+  name        String
+  description String?
+  contextWindow Int?
+  isActive    Boolean  @default(true)
+  pricing     String?  // JSON string for pricing info
+  capabilities String? // JSON string for supported capabilities
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  provider Provider @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, externalId])
+  @@index([providerId])
+}
+
+model PromptTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  content        String
+  variables      String?  // JSON string
+  isPublic       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([name])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FILES & DOCUMENTS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model File {
+  id             String     @id @default(cuid())
+  name           String
+  originalName   String
+  mimeType       String
+  size           Int
+  storageKey     String
+  url            String?
+  organizationId String
+  projectId      String?
+  folderId       String?
+  userId         String
+  status         FileStatus @default(PENDING)
+  metadata       String?    // JSON string
+  version        Int        @default(1)
+  parentFileId   String?    // For version history
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  folder       Folder?      @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  versions     File[]       @relation("FileVersions")
+  parent       File?        @relation("FileVersions", fields: [parentFileId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([folderId])
+  @@index([mimeType])
+  @@index([parentFileId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// API KEYS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model ApiKey {
+  id             String   @id @default(cuid())
+  userId         String
+  organizationId String?
+  name           String
+  keyHash        String   @unique
+  keyPrefix      String   // first 8 chars for identification
+  permissions    String?  // JSON string
+  lastUsedAt     DateTime?
+  expiresAt      DateTime?
+  isRevoked      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([keyPrefix])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// NOTIFICATIONS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Notification {
+  id         String           @id @default(cuid())
+  userId     String
+  type       NotificationType
+  title      String
+  message    String
+  link       String?
+  isRead     Boolean          @default(false)
+  readAt     DateTime?
+  createdAt  DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([createdAt])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AUDIT LOGS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model AuditLog {
+  id             String       @id @default(cuid())
+  userId         String?
+  organizationId String?
+  action         AuditAction
+  resource       String
+  resourceId     String?
+  details        String?      // JSON string
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime     @default(now())
+
+  user         User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([action])
+  @@index([resource])
+  @@index([createdAt])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SETTINGS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model UserSetting {
+  id     String @id @default(cuid())
+  userId String
+  key    String
+  value  String // JSON string
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([userId])
+}
+
+model OrganizationSetting {
+  id             String @id @default(cuid())
+  organizationId String
+  key            String
+  value          String // JSON string
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// FEATURE FLAGS
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model FeatureFlag {
+  id          String          @id @default(cuid())
+  key         String          @unique
+  name        String
+  description String?
+  type        FeatureFlagType @default(BOOLEAN)
+  value       String          // JSON string
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  evaluations FeatureFlagEvaluation[]
+
+  @@index([key])
+  @@index([isActive])
+}
+
+model FeatureFlagEvaluation {
+  id            String   @id @default(cuid())
+  flagId        String
+  userId        String
+  variant       String?
+  evaluatedAt   DateTime @default(now())
+
+  flag FeatureFlag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  user User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([flagId])
+  @@index([userId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PHASE 3: WORKSPACE & CHAT PLATFORM
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Folder {
+  id             String     @id @default(cuid())
+  name           String
+  type           FolderType
+  parentId       String?
+  organizationId String
+  userId         String
+  icon           String?
+  color          String?
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  parent       Folder?      @relation("FolderHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Folder[]     @relation("FolderHierarchy")
+  chats        Chat[]
+  files        File[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([parentId])
+  @@index([type])
+}
+
+model Tag {
+  id             String   @id @default(cuid())
+  name           String
+  color          String   @default("#6366f1")
+  organizationId String
+  userId         String
+  createdAt      DateTime @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  chats         ChatTag[]
+
+  @@unique([organizationId, name, userId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+model ChatTag {
+  chatId String
+  tagId  String
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, tagId])
+  @@index([chatId])
+  @@index([tagId])
+}
+
+model ChatShare {
+  id        String   @id @default(cuid())
+  chatId    String
+  userId    String
+  shareToken String @unique
+  isPublic  Boolean  @default(false)
+  expiresAt DateTime?
+  viewCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  chat Chat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([chatId])
+  @@index([shareToken])
+}
+
+model MessageVersion {
+  id        String   @id @default(cuid())
+  messageId String
+  content   String
+  version   Int
+  editedBy  String?
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
+}
+
+model MessageReaction {
+  id        String       @id @default(cuid())
+  messageId String
+  userId    String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, type])
+  @@index([messageId])
+  @@index([userId])
+}
+
+model Artifact {
+  id             String       @id @default(cuid())
+  title          String
+  artifactType   ArtifactType
+  content        String       // The artifact content (code, markdown, JSON, etc.)
+  language       String?      // For code artifacts
+  metadata       String?      // JSON string
+  organizationId String
+  userId         String
+  projectId      String?
+  chatId         String?
+  messageId      String?
+  isPublic       Boolean       @default(false)
+  version        Int           @default(1)
+  parentArtifactId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  chat         Chat?        @relation(fields: [chatId], references: [id], onDelete: SetNull)
+  message      Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([projectId])
+  @@index([chatId])
+  @@index([artifactType])
+}
+
+model Note {
+  id             String   @id @default(cuid())
+  title          String
+  content        String
+  organizationId String
+  projectId      String?
+  userId         String
+  isPinned       Boolean  @default(false)
+  tags           String?  // JSON array
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([isPinned])
+}
+
+model Task {
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  status         String   @default("todo") // todo, in-progress, done
+  priority       String   @default("medium") // low, medium, high, urgent
+  organizationId String
+  projectId      String?
+  userId         String
+  assigneeId     String?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  tags           String?  // JSON array
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([projectId])
+  @@index([status])
+}
+
+model QuickAccess {
+  id        String   @id @default(cuid())
+  userId    String
+  itemType  String   // chat, project, file, note, artifact
+  itemId    String
+  label     String
+  icon      String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, itemType, itemId])
+  @@index([userId])
+}
+
+model WorkspaceVariable {
+  id             String   @id @default(cuid())
+  key            String
+  value          String
+  description    String?
+  isSecret       Boolean  @default(false)
+  organizationId String
+  projectId      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, key])
+  @@index([projectId])
+}
+
+model PromptLibrary {
+  id             String   @id @default(cuid())
+  title          String
+  description    String?
+  content        String
+  category       String   @default("general")
+  tags           String?  // JSON array
+  organizationId String?
+  userId         String
+  isPublic       Boolean  @default(false)
+  isFavorite     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([category])
+  @@index([isPublic])
+}
+
+model UserPreference {
+  id              String   @id @default(cuid())
+  userId          String
+  category        String   // workspace, chat, models, notifications, privacy
+  settings        String   // JSON string
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PHASE 4: MEMORY ENGINE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Memory {
+  id             String       @id @default(cuid())
+  content        String       // The memory text
+  summary        String?      // Compressed summary
+  type           MemoryType
+  scope          MemoryScope
+  status         MemoryStatus @default(ACTIVE)
+  organizationId String
+  userId         String
+  projectId      String?
+  chatId         String?
+  parentMemoryId String?      // For versioning
+  embedding      String?      // JSON array or vector reference
+  embeddingModel EmbeddingModel?
+  confidence     Float        @default(0.5) // 0.0 to 1.0
+  importance     Float        @default(0.5) // 0.0 to 1.0
+  accessCount    Int          @default(0)
+  lastAccessedAt DateTime?
+  expiresAt      DateTime?    // null = never expires
+  deprecatedAt   DateTime?
+  metadata       String?      // JSON string
+  tags           String?      // JSON array
+  source         String?      // chat, file, manual, auto-extracted
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent       Memory?      @relation("MemoryVersion", fields: [parentMemoryId], references: [id], onDelete: SetNull)
+  versions     Memory[]     @relation("MemoryVersion")
+  permissions  MemoryPermission[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([scope])
+  @@index([type])
+  @@index([status])
+  @@index([confidence])
+  @@index([importance])
+  @@index([createdAt])
+  @@index([expiresAt])
+}
+
+model MemoryPermission {
+  id        String   @id @default(cuid())
+  memoryId  String
+  userId    String
+  access    String   @default("read") // read, write, admin
+  createdAt DateTime @default(now())
+
+  memory Memory @relation(fields: [memoryId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([memoryId, userId])
+  @@index([memoryId])
+  @@index([userId])
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// PHASE 4: KNOWLEDGE BASE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+model Collection {
+  id             String         @id @default(cuid())
+  name           String
+  description    String?
+  collectionType CollectionType
+  parentId       String?
+  organizationId String
+  userId         String
+  projectId      String?
+  icon           String?
+  color          String?
+  isShared       Boolean        @default(false)
+  isPublic       Boolean        @default(false)
+  sortOrder      Int            @default(0)
+  metadata       String?        // JSON string
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  parent       Collection?  @relation("CollectionHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children     Collection[] @relation("CollectionHierarchy")
+  documents    KnowledgeDocument[]
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([parentId])
+  @@index([collectionType])
+}
+
+model KnowledgeDocument {
+  id             String         @id @default(cuid())
+  title          String
+  content        String         // Full extracted text content
+  summary        String?        // AI-generated summary
+  documentType   DocumentType
+  status         DocumentStatus @default(PENDING)
+  organizationId String
+  userId         String
+  projectId      String?
+  collectionId   String?
+  fileId         String?        // Reference to uploaded File
+  sourceUrl      String?        // For web imports
+  sourceType     String?        // upload, web, api, manual
+  language       String?        // Detected language code
+  contentHash    String?        // SHA-256 fingerprint for dedup
+  checksum       String?
+  pageCount      Int?
+  wordCount      Int?
+  charCount      Int?
+  chunkCount     Int?
+  metadata       String?        // JSON string
+  tags           String?        // JSON array
+  categories     String?        // JSON array
+  keywords       String?        // JSON array of extracted keywords
+  topics         String?        // JSON array of detected topics
+  languageConfidence Float?
+  duplicateOfId  String?        // Reference to original if duplicate
+  processingError String?
+  processedAt    DateTime?
+  indexedAt      DateTime?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  project      Project?     @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  collection   Collection?  @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  chunks       DocumentChunk[]
+  embeddings   Embedding[]
+  duplicateOf  KnowledgeDocument? @relation("DocumentDuplicate", fields: [duplicateOfId], references: [id], onDelete: SetNull)
+  duplicates   KnowledgeDocument[] @relation("DocumentDuplicate")
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([projectId])
+  @@index([collectionId])
+  @@index([documentType])
+  @@index([status])
+  @@index([contentHash])
+  @@index([createdAt])
+}
+
+model DocumentChunk {
+  id             String   @id @default(cuid())
+  documentId     String
+  content        String   // Chunk text
+  chunkIndex     Int      // Position in document
+  tokenCount     Int?
+  charCount      Int
+  startPosition  Int      // Character offset in original
+  endPosition    Int
+  embedding      String?  // JSON array or vector reference
+  embeddingModel EmbeddingModel?
+  embeddingStatus EmbeddingStatus @default(PENDING)
+  metadata       String?  // JSON string (page number, section, etc.)
+  createdAt      DateTime @default(now())
+
+  document KnowledgeDocument @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  embeddings Embedding[]
+
+  @@index([documentId])
+  @@index([embeddingStatus])
+  @@index([chunkIndex])
+}
+
+model Embedding {
+  id             String          @id @default(cuid())
+  organizationId String
+  userId         String
+  documentId     String?
+  chunkId        String?
+  memoryId       String?
+  embedding      String          // JSON array (vector)
+  embeddingModel EmbeddingModel
+  dimensions     Int
+  textPreview    String          // First 200 chars of source text
+  qdrantId       String?         // ID in Qdrant vector store
+  qdrantCollection String?       // Qdrant collection name
+  status         EmbeddingStatus @default(COMPLETED)
+  metadata       String?         // JSON string
+  createdAt      DateTime        @default(now())
+
+  user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  document     KnowledgeDocument? @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunk        DocumentChunk?     @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([documentId])
+  @@index([chunkId])
+  @@index([embeddingModel])
+  @@index([status])
+  @@index([qdrantCollection])
+}
+
+model SearchIndex {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  itemType       String   // chat, message, file, document, note, artifact, project, memory
+  itemId         String
+  title          String
+  content        String   // Indexed content
+  summary        String?  // AI summary
+  keywords       String?  // JSON array
+  topics         String?  // JSON array
+  language       String?
+  classification String?  // AI classification
+  metadata       String?  // JSON string
+  embedding      String?  // JSON array
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([itemType])
+  @@index([itemId])
+  @@index([createdAt])
+}
