@@ -1,8 +1,6 @@
 #!/bin/sh
 set -e
-
 echo "Starting Moataz AI Platform..."
-
 # Initialize database (create file and apply schema for SQLite)
 if [ -n "$DATABASE_URL" ]; then
   echo "Initializing database..."
@@ -13,6 +11,5 @@ if [ -n "$DATABASE_URL" ]; then
 else
   echo "Warning: DATABASE_URL not set. Database initialization skipped."
 fi
-
 echo "Starting server..."
 exec node server.js
