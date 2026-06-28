@@ -39,6 +39,8 @@ COPY --from=builder --chown=moataz:nodejs /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/scripts/start.sh ./scripts/start.sh
 
 USER moataz
 EXPOSE 3000
@@ -48,4 +50,4 @@ ENV HOSTNAME="0.0.0.0"
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/v1/health || exit 1
 
-CMD ["node", "server.js"]
+CMD ["sh", "./scripts/start.sh"]
