@@ -32,6 +32,7 @@ LABEL org.opencontainers.image.version="1.0.0"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 moataz
+RUN mkdir -p /app/data && chown moataz:nodejs /app/data
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=moataz:nodejs /app/.next/standalone ./
