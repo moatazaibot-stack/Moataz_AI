@@ -43,6 +43,7 @@ COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/scripts/start.sh ./scripts/start.sh
 
+RUN mkdir -p /app/data && chown moataz:nodejs /app/data
 USER moataz
 EXPOSE 3000
 ENV PORT=3000
