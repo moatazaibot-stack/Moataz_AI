@@ -32,6 +32,7 @@ LABEL org.opencontainers.image.version="1.0.0"
 
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 moataz
+RUN mkdir -p /app/data && chown moataz:nodejs /app/data
 
 
 COPY --from=builder /app/public ./public
@@ -44,6 +45,7 @@ COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/scripts/start.sh ./scripts/start.sh
 
 RUN mkdir -p /app/data && chown moataz:nodejs /app/data
+RUN chown -R moataz:nodejs /app
 USER moataz
 EXPOSE 3000
 ENV PORT=3000
